@@ -86,14 +86,38 @@ function onWindowClose() {
 // Function to check backend connection status
 async function checkBackendStatus() {
     try {
-        const response = await fetch('http://localhost:3000/status');
+        const port = window.backendPort || 3000;
+        const response = await fetch(`http://localhost:${port}/status`);
         const data = await response.json();
         document.getElementById('status').textContent = 'Backend Connected';
         document.getElementById('status').style.color = 'green';
+        return true;
     } catch (error) {
         document.getElementById('status').textContent = 'Backend Disconnected';
         document.getElementById('status').style.color = 'red';
+        console.error('Backend connection error:', error);
+        return false;
     }
+}
+
+// Function to wait for backend to be ready
+async function waitForBackend(maxAttempts = 30, interval = 2000) {
+    console.log('Waiting for backend to start...');
+    for (let i = 0; i < maxAttempts; i++) {
+        try {
+            const port = window.backendPort || 3000;
+            console.log(`Attempt ${i + 1}/${maxAttempts} to connect to backend on port ${port}...`);
+            const response = await fetch(`http://localhost:${port}/status`);
+            const data = await response.json();
+            console.log('Backend is ready');
+            return true;
+        } catch (error) {
+            console.log(`Waiting for backend... (${i + 1}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, interval));
+        }
+    }
+    console.error('Backend failed to start after maximum attempts');
+    return false;
 }
 
 // Function to start the backend server
@@ -102,32 +126,53 @@ async function startBackend() {
         const response = await fetch('http://localhost:3000/start');
         const data = await response.json();
         console.log('Backend started successfully');
+        return { port: data.port };
     } catch (error) {
         console.error('Failed to start backend:', error);
     }
 }
 
-// Initialize Neutralino
-Neutralino.init();
+// Initialize backend and UI
+async function initializeApp() {
+    try {
+        // Initialize Neutralino
+        await Neutralino.init();
 
-// Start the backend server
-startBackend().then(() => {
-    console.log('Backend initialization complete');
-});
+        // Set up event listeners
+        Neutralino.events.on("trayMenuItemClicked", onTrayMenuItemClicked);
+        Neutralino.events.on("windowClose", onWindowClose);
 
-// Register event listeners
-Neutralino.events.on("trayMenuItemClicked", onTrayMenuItemClicked);
-Neutralino.events.on("windowClose", onWindowClose);
+        // Show app info
+        showInfo();
 
-// Conditional initialization: Set up system tray if not running on macOS
-if(NL_OS != "Darwin") { // TODO: Fix https://github.com/neutralinojs/neutralinojs/issues/615
-    setTray();
+        // Set up tray
+        if(NL_OS != "Darwin") { 
+            setTray();
+        }
+
+        // Start the backend server
+        console.log('Starting backend server...');
+        const { port } = await startBackend();
+        window.backendPort = port;
+        console.log('Backend started on port:', port);
+
+        // Wait for backend to be ready
+        console.log('Checking backend connection...');
+        const backendReady = await waitForBackend();
+        
+        if (backendReady) {
+            console.log('Backend is running and connected');
+            // Start periodic status check
+            setInterval(checkBackendStatus, 5000);
+        } else {
+            console.error('Failed to connect to backend');
+            document.getElementById('status').textContent = 'Backend Failed to Start';
+            document.getElementById('status').style.color = 'red';
+        }
+    } catch (error) {
+        console.error('Initialization error:', error);
+    }
 }
 
-// Display app information
-showInfo();
-
-// Check backend status every 5 seconds
-setInterval(checkBackendStatus, 5000);
-// Initial check
-checkBackendStatus();
+// Start the application
+initializeApp();

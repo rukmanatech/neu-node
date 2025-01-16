@@ -60,5 +60,29 @@
         }
       }
     }
-  ]
+  ],
+  "buildScript": {
+    "windows": {
+      "target": "nsis",
+      "icon": "resources/icons/appIcon.ico",
+      "extraResources": [
+        {
+          "from": "node_modules",
+          "to": "resources/node_modules"
+        },
+        {
+          "from": "backend",
+          "to": "resources/backend"
+        }
+      ],
+      "nsis": {
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true,
+        "shortcutName": "Backend Status Monitor",
+        "include": "installer.nsh"
+      }
+    }
+  }
 }
